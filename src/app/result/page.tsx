@@ -1803,7 +1803,10 @@ export default function ResultPage() {
             <li>
               <strong>保存して反映</strong> を押す（ここで初めて確定）
             </li>
-            <li>その後に上部の <strong>バックアップ保存</strong> を押す</li>
+            <li>
+              その後に <strong>プロファイル・データ</strong> メニューから{" "}
+              <strong>バックアップ保存</strong> を押す
+            </li>
           </ol>
         </CardContent>
       </Card>
@@ -1811,7 +1814,7 @@ export default function ResultPage() {
       <Card
         ref={editModeCardRef}
         className={
-          "mb-6 scroll-mt-20 sm:scroll-mt-28 " +
+          "mb-6 scroll-mt-6 " +
           (editMode ? "border-accent/60 ring-2 ring-accent/20" : "")
         }
       >
@@ -1852,7 +1855,7 @@ export default function ResultPage() {
                 <strong className="block mb-1">未保存の変更があります</strong>
                 <p>
                   いまの編集内容は <strong>変更を保存して反映する</strong>{" "}
-                  を押すまで確定しません。上部の「バックアップ保存」にも含まれません。
+                  を押すまで確定しません。「プロファイル・データ」内のバックアップ保存にも含まれません。
                 </p>
                 {editDiffSummary.length > 0 && (
                   <p className="mt-2 text-xs leading-relaxed text-ink-700">

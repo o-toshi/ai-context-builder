@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import { Stepper } from "@/components/stepper";
 import type { StepId } from "@/types/builder";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { useBuilderStore } from "@/store/builder-store";
@@ -149,10 +148,10 @@ interface WorkspaceShellProps {
 
 /**
  * 診断ウィザードの共通シェル。
- * ステッパーヘッダー + メインコンテンツ + 進捗 / リセットの管理を提供。
+ * 固定ヘッダーは使わず、本文先頭のリンクと「プロファイル・データ」メニューで補助操作を提供。
  */
 export function WorkspaceShell({
-  current,
+  current: _current,
   title,
   subtitle,
   children,
@@ -342,129 +341,38 @@ export function WorkspaceShell({
 
   return (
     <div className="min-h-screen bg-ink-50">
-      <header className="z-20 shrink-0 border-b border-ink-100 bg-white/90 md:sticky md:top-0 md:backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-2 px-4 py-2 md:gap-3 md:px-6 md:py-2.5 lg:flex-nowrap">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={handleBackupImportChange}
+      />
+
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 md:py-10">
+        <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-600">
           <Link
             href="/"
-            className="group flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-ink-100"
-            aria-label="トップページへ戻る"
+            className="font-medium text-ink-800 underline-offset-2 hover:text-ink-900 hover:underline"
           >
-            <span
-              aria-hidden
-              className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-900 bg-ink-900 text-[12px] font-semibold text-white transition-colors group-hover:bg-ink-800"
-            >
-              AC
-            </span>
-            <span className="hidden text-sm font-semibold tracking-tightish text-ink-900 transition-colors group-hover:text-ink-700 sm:inline">
-              AI Context Builder
-            </span>
-            <span className="text-xs font-semibold tracking-tightish text-ink-900 transition-colors group-hover:text-ink-700 sm:hidden">
-              AI CB
-            </span>
+            トップ
           </Link>
           <Link
             href="/help/glossary"
-            className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-900"
+            className="underline-offset-2 hover:text-ink-900 hover:underline"
           >
             用語ヘルプ
           </Link>
-          <div className="order-3 hidden min-h-0 min-w-0 basis-full overflow-hidden md:order-none md:block md:max-h-11 md:min-w-0 md:flex-1 md:basis-auto lg:max-w-[min(100%,28rem)] xl:max-w-[min(100%,24rem)]">
-            <Stepper current={current} variant="horizontal" />
-          </div>
-          <div className="hidden items-center gap-2 lg:flex">
-            <div className="flex items-center gap-2 rounded-md border border-ink-200 bg-white px-2 py-1">
-              <label className="text-[11px] text-ink-500">現在のプロファイル</label>
-              <select
-                value={currentProfileId}
-                onChange={(e) => switchProfile(e.target.value)}
-                className="h-7 min-w-[170px] rounded-md border border-ink-200 bg-white px-2 text-xs text-ink-800 outline-none focus:border-ink-900"
-              >
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleEditTags}
-                className="max-w-[200px] truncate rounded px-2 py-1 text-[11px] text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800"
-                title="タグを編集"
-              >
-                {(profiles.find((p) => p.id === currentProfileId)?.tags ?? [])
-                  .slice(0, 3)
-                  .join(" / ") || "タグなし"}
-              </button>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setProfilePanelOpen(true)}
-            >
-              管理
-            </Button>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            className="hidden"
-            onChange={handleBackupImportChange}
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            className="hidden md:inline-flex"
-            onClick={handleBackupExport}
-          >
-            バックアップ保存
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="hidden md:inline-flex"
-            onClick={handleFinalSnapshotSave}
-          >
-            完成版を保存
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="hidden md:inline-flex"
-            onClick={handleBackupImportClick}
-          >
-            復元
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="hidden md:inline-flex"
-            onClick={() => {
-              if (
-                window.confirm(
-                  "すべての回答をリセットします。よろしいですか？",
-                )
-              ) {
-                reset();
-              }
-            }}
-          >
-            リセット
-          </Button>
-        </div>
-        <div className="border-t border-ink-100 bg-ink-50/60 md:hidden">
-          <div className="mx-auto w-full max-w-6xl overflow-hidden px-4 py-2">
-            <Stepper current={current} variant="horizontal" />
-          </div>
-        </div>
-        <div className="border-t border-ink-100 bg-white lg:hidden">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-6 py-3">
-            <div className="flex items-center gap-2">
+          <details className="group relative">
+            <summary className="cursor-pointer list-none underline-offset-2 marker:content-none hover:text-ink-900 hover:underline [&::-webkit-details-marker]:hidden">
+              プロファイル・データ
+            </summary>
+            <div className="absolute left-0 top-full z-30 mt-2 w-[min(100vw-2rem,22rem)] rounded-lg border border-ink-200 bg-white p-3 shadow-lab">
               <label className="text-xs text-ink-500">現在のプロファイル</label>
               <select
                 value={currentProfileId}
                 onChange={(e) => switchProfile(e.target.value)}
-                className="h-8 min-w-0 flex-1 rounded-md border border-ink-200 bg-white px-2 text-xs text-ink-800 outline-none focus:border-ink-900"
+                className="mt-1 h-9 w-full rounded-md border border-ink-200 bg-white px-2 text-sm text-ink-800 outline-none focus:border-ink-900"
               >
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -472,51 +380,53 @@ export function WorkspaceShell({
                   </option>
                 ))}
               </select>
+              <p className="mt-2 truncate text-[11px] text-ink-500">
+                タグ:{" "}
+                {(profiles.find((p) => p.id === currentProfileId)?.tags ?? []).join(
+                  " / ",
+                ) || "なし"}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setProfilePanelOpen(true)}
+                >
+                  管理
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleEditTags}>
+                  タグ編集
+                </Button>
+              </div>
+              <div className="mt-3 flex flex-col gap-1 border-t border-ink-100 pt-3">
+                <Button size="sm" variant="ghost" onClick={handleBackupExport}>
+                  バックアップ保存
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleFinalSnapshotSave}>
+                  完成版を保存
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleBackupImportClick}>
+                  バックアップ復元
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "すべての回答をリセットします。よろしいですか？",
+                      )
+                    ) {
+                      reset();
+                    }
+                  }}
+                >
+                  すべてリセット
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setProfilePanelOpen(true)}
-              >
-                管理
-              </Button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-ink-100 pt-2 md:hidden">
-              <Button size="sm" variant="ghost" onClick={handleBackupExport}>
-                保存
-              </Button>
-              <Button size="sm" variant="ghost" onClick={handleFinalSnapshotSave}>
-                完成版
-              </Button>
-              <Button size="sm" variant="ghost" onClick={handleBackupImportClick}>
-                復元
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "すべての回答をリセットします。よろしいですか？",
-                    )
-                  ) {
-                    reset();
-                  }
-                }}
-              >
-                リセット
-              </Button>
-            </div>
-            <p className="text-[11px] text-ink-500">
-              {(profiles.find((p) => p.id === currentProfileId)?.tags ?? []).join(" / ") ||
-                "タグなし"}
-            </p>
-          </div>
+          </details>
         </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-6xl px-6 py-10 md:py-12">
         {importSuccessSummary && (
           <div className="mb-5 rounded-lg border border-signal-may/35 bg-signal-may/10 px-4 py-3 text-sm text-ink-800">
             <div className="flex items-center justify-between gap-2">
