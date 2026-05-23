@@ -342,8 +342,8 @@ export function WorkspaceShell({
 
   return (
     <div className="min-h-screen bg-ink-50">
-      <header className="z-20 border-b border-ink-100 bg-white/90 md:sticky md:top-0 md:backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4 py-2.5 md:gap-4 md:px-6 md:py-3">
+      <header className="z-20 shrink-0 border-b border-ink-100 bg-white/90 md:sticky md:top-0 md:backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-2 px-4 py-2 md:gap-3 md:px-6 md:py-2.5 lg:flex-nowrap">
           <Link
             href="/"
             className="group flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-ink-100"
@@ -368,7 +368,7 @@ export function WorkspaceShell({
           >
             用語ヘルプ
           </Link>
-          <div className="ml-2 hidden flex-1 md:block">
+          <div className="order-3 hidden min-h-0 min-w-0 basis-full overflow-hidden md:order-none md:block md:max-h-11 md:min-w-0 md:flex-1 md:basis-auto lg:max-w-[min(100%,28rem)] xl:max-w-[min(100%,24rem)]">
             <Stepper current={current} variant="horizontal" />
           </div>
           <div className="hidden items-center gap-2 lg:flex">
@@ -453,7 +453,7 @@ export function WorkspaceShell({
           </Button>
         </div>
         <div className="border-t border-ink-100 bg-ink-50/60 md:hidden">
-          <div className="mx-auto w-full max-w-6xl overflow-hidden px-6 py-2">
+          <div className="mx-auto w-full max-w-6xl overflow-hidden px-4 py-2">
             <Stepper current={current} variant="horizontal" />
           </div>
         </div>

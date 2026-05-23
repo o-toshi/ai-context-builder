@@ -67,17 +67,18 @@ export function Stepper({ current, variant = "horizontal" }: StepperProps) {
   }
 
   return (
-    <nav aria-label="進捗" className="w-full">
-      <ol className="flex items-center gap-2 overflow-x-auto md:overflow-visible">
+    <nav aria-label="進捗" className="w-full min-w-0">
+      <ol className="flex w-max max-w-full items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
         {BUILDER_STEPS.map((step, idx) => {
           const isDone = completed[step.id];
           const isCurrent = step.id === current;
           return (
-            <li key={step.id} className="flex shrink-0 items-center gap-2 md:flex-1 md:min-w-0">
+            <li key={step.id} className="flex shrink-0 items-center gap-1.5">
               <Link
                 href={step.path}
+                title={`${step.label} — ${step.description}`}
                 className={cn(
-                  "group flex min-w-0 items-center justify-center gap-2 rounded-lg border px-2 py-2 transition-colors md:flex-1 md:justify-start md:gap-3 md:px-3",
+                  "group flex max-w-[9.25rem] shrink-0 items-center gap-2 rounded-md border px-2 py-1.5 transition-colors sm:max-w-[10rem] lg:max-w-[11rem]",
                   isCurrent
                     ? "border-ink-900 bg-white shadow-lab"
                     : isDone
@@ -87,7 +88,7 @@ export function Stepper({ current, variant = "horizontal" }: StepperProps) {
               >
                 <span
                   className={cn(
-                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-medium",
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-medium",
                     isCurrent
                       ? "border-ink-900 bg-ink-900 text-white"
                       : isDone
@@ -98,11 +99,11 @@ export function Stepper({ current, variant = "horizontal" }: StepperProps) {
                 >
                   {isDone && !isCurrent ? "✓" : step.index}
                 </span>
-                <div className="hidden flex-col leading-tight md:flex">
-                  <span className="text-[13px] font-medium tracking-tightish text-ink-900">
+                <div className="hidden min-w-0 flex-1 flex-col leading-tight sm:flex 2xl:hidden">
+                  <span className="truncate text-[12px] font-medium tracking-tightish text-ink-900">
                     {step.label}
                   </span>
-                  <span className="text-[11px] text-ink-400">
+                  <span className="hidden truncate text-[10px] text-ink-400 lg:block">
                     {step.description}
                   </span>
                 </div>
@@ -111,7 +112,7 @@ export function Stepper({ current, variant = "horizontal" }: StepperProps) {
                 <span
                   aria-hidden
                   className={cn(
-                    "hidden h-px w-4 md:block",
+                    "hidden h-px w-2 shrink-0 lg:block",
                     isDone ? "bg-accent" : "bg-ink-200",
                   )}
                 />
