@@ -11,8 +11,11 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActionNotice } from "@/components/builder/action-notice";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { Button } from "@/components/ui/button";
+import { useActionNotice } from "@/hooks/use-action-notice";
+import { useStableItemOrder } from "@/hooks/use-stable-item-order";
 import {
   Card,
   CardContent,
@@ -65,7 +68,8 @@ function starterTemplate(questionId: string): string {
 
 export default function InterviewPage() {
   const router = useRouter();
-  const [showUnansweredFirst, setShowUnansweredFirst] = useState(true);
+  const [showUnansweredFirst, setShowUnansweredFirst] = useState(false);
+  const { notice, showNotice } = useActionNotice();
   const [showOnlyUnanswered, setShowOnlyUnanswered] = useState(false);
   const [activeRecordingQuestionId, setActiveRecordingQuestionId] = useState<
     string | null
@@ -98,15 +102,6 @@ export default function InterviewPage() {
     [clips],
   );
 
-  const orderedQuestions = useMemo(() => {
-    if (!showUnansweredFirst) return INTERVIEW_QUESTIONS;
-    return [...INTERVIEW_QUESTIONS].sort((a, b) => {
-      const aAnswered = transcriptOf(a.id).trim().length > 0 ? 1 : 0;
-      const bAnswered = transcriptOf(b.id).trim().length > 0 ? 1 : 0;
-      return aAnswered - bAnswered;
-    });
-  }, [showUnansweredFirst, transcriptOf]);
-
   const questionOrderMap = useMemo(
     () =>
       new Map(
@@ -114,6 +109,22 @@ export default function InterviewPage() {
       ),
     [],
   );
+
+  const answeredSignature = useMemo(
+    () =>
+      INTERVIEW_QUESTIONS.map((q) => {
+        const text =
+          clips.find((c) => c.questionId === q.id)?.transcript ?? "";
+        return `${q.id}:${text.trim().length > 0 ? 1 : 0}`;
+      }).join("|"),
+    [clips],
+  );
+
+  const orderedQuestions = useStableItemOrder(INTERVIEW_QUESTIONS, {
+    showUnansweredFirst,
+    answeredSignature,
+    getSortIndex: (q) => questionOrderMap.get(q.id) ?? 0,
+  });
 
   const visibleQuestions = useMemo(() => {
     if (!showOnlyUnanswered) return orderedQuestions;
@@ -147,6 +158,23 @@ export default function InterviewPage() {
         transcript: starterTemplate(q.id),
       });
     });
+    showNotice(
+      "空欄にテンプレを一括挿入しました",
+      "自動では次へ進みません。録音する場合は各質問の「録音開始」から行ってください。",
+    );
+  };
+
+  const applyStarterTemplate = (questionId: string) => {
+    const current = transcriptOf(questionId);
+    upsertClip({
+      questionId,
+      transcript: current.trim() ? current : starterTemplate(questionId),
+    });
+    const order = questionOrderMap.get(questionId) ?? 0;
+    showNotice(
+      `Q${String(order).padStart(2, "0")} に書き出しテンプレを挿入しました`,
+      "自動では次へ進みません。録音を優先する場合はそのまま録音開始を押してください。",
+    );
   };
 
   const setQuestionStatus = (
@@ -178,6 +206,11 @@ export default function InterviewPage() {
     });
     setQuestionStatus(questionId, "idle");
     setErrorByQuestion((prev) => ({ ...prev, [questionId]: "" }));
+    const order = questionOrderMap.get(questionId) ?? 0;
+    showNotice(
+      `Q${String(order).padStart(2, "0")} の文字起こしを反映しました`,
+      "内容を確認してください。自動では次へ進みません。",
+    );
   };
 
   const startRecording = (questionId: string) => {
@@ -321,8 +354,15 @@ export default function InterviewPage() {
               回答済み: {answeredCount}件 / 未回答: {totalQuestions - answeredCount}件
             </span>
           </div>
+          <p className="mt-3 text-xs leading-relaxed text-ink-500">
+            通常は Q01 から順に表示します。各質問はまず録音（または停止）し、テキストのテンプレは補助として下に置いています。「未回答を先に表示」を ON にすると、回答後に約1秒してから並び替えます。
+          </p>
         </CardContent>
       </Card>
+
+      {notice ? (
+        <ActionNotice title={notice.title} detail={notice.detail} />
+      ) : null}
 
       <div className="grid gap-4">
         {visibleQuestions.length === 0 && showOnlyUnanswered ? (
@@ -376,10 +416,67 @@ export default function InterviewPage() {
                 </div>
               </CardHeader>
               <CardContent>
+                <div className="rounded-lg border border-ink-200 bg-ink-50 p-3">
+                  <p className="text-xs font-medium text-ink-800">録音（推奨）</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {isRecording ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => stopRecording(q.id)}
+                      >
+                        ■ 停止（残り{recordingSecondsLeft}秒）
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={Boolean(activeRecordingQuestionId)}
+                        onClick={() => startRecording(q.id)}
+                      >
+                        🎙 録音開始（最大60秒）
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={!current.trim() && qStatus === "idle"}
+                      onClick={() => clearQuestionTranscript(q.id)}
+                    >
+                      録音やり直し
+                    </Button>
+                    <span
+                      className={
+                        "rounded-full border px-2 py-0.5 text-[11px] font-medium " +
+                        (qStatus === "recording"
+                          ? "border-signal-should/30 bg-signal-should/10 text-signal-should"
+                          : qStatus === "transcribing"
+                            ? "border-accent/30 bg-accent/10 text-accent"
+                            : qStatus === "error"
+                              ? "border-signal-must/30 bg-signal-must/10 text-signal-must"
+                              : "border-ink-200 bg-white text-ink-500")
+                      }
+                    >
+                      {qStatus === "recording"
+                        ? "録音中"
+                        : qStatus === "transcribing"
+                          ? "変換中"
+                          : qStatus === "error"
+                            ? "失敗"
+                            : "待機"}
+                    </span>
+                  </div>
+                  {errorByQuestion[q.id] && (
+                    <p className="mt-2 text-xs text-signal-must">
+                      {errorByQuestion[q.id]}
+                    </p>
+                  )}
+                </div>
+
                 <textarea
-                  className="w-full rounded-lg border border-ink-200 bg-white px-4 py-3 text-sm leading-relaxed text-ink-900 outline-none transition focus:border-ink-900 focus:ring-2 focus:ring-ink-900/10"
+                  className="mt-3 w-full rounded-lg border border-ink-200 bg-white px-4 py-3 text-sm leading-relaxed text-ink-900 outline-none transition focus:border-ink-900 focus:ring-2 focus:ring-ink-900/10"
                   rows={4}
-                  placeholder="（録音する代わりに）思ったことをそのまま書いてください。フィラーや言い淀みも含めて構いません。"
+                  placeholder="録音後の文字起こし、または録音の代わりにテキストで回答してください。"
                   value={current}
                   onChange={(e) =>
                     upsertClip({
@@ -388,96 +485,47 @@ export default function InterviewPage() {
                     })
                   }
                 />
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() =>
-                      upsertClip({
-                        questionId: q.id,
-                        transcript: current.trim() ? current : starterTemplate(q.id),
-                      })
-                    }
-                  >
-                    書き出しテンプレを挿入
-                  </Button>
-                  {isRecording ? (
-                    <Button size="sm" variant="secondary" onClick={() => stopRecording(q.id)}>
-                      ■ 停止（残り{recordingSecondsLeft}秒）
-                    </Button>
-                  ) : (
+
+                <div className="mt-2 border-t border-ink-100 pt-2">
+                  <p className="mb-2 text-[11px] font-medium text-ink-500">
+                    テキスト補助（任意）
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
-                      variant="secondary"
-                      disabled={Boolean(activeRecordingQuestionId)}
-                      onClick={() => startRecording(q.id)}
+                      variant="ghost"
+                      onClick={() => applyStarterTemplate(q.id)}
                     >
-                      🎙 録音開始（最大60秒）
+                      書き出しテンプレを挿入
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={!current.trim()}
-                    onClick={() => clearQuestionTranscript(q.id)}
-                  >
-                    録音やり直し
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={!lastTranscriptByQuestion[q.id]}
-                    onClick={() => restoreLastTranscript(q.id)}
-                  >
-                    直近復元
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={qStatus !== "error"}
-                    onClick={() => retryTranscribe(q.id)}
-                  >
-                    再試行
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={!current.trim()}
-                    onClick={() => clearQuestionTranscript(q.id)}
-                  >
-                    この質問をクリア
-                  </Button>
-                  <span className="text-xs font-mono text-ink-400">
-                    {current.trim().length} chars
-                  </span>
-                  <span
-                    className={
-                      "rounded-full border px-2 py-0.5 text-[11px] font-medium " +
-                      (qStatus === "recording"
-                        ? "border-signal-should/30 bg-signal-should/10 text-signal-should"
-                        : qStatus === "transcribing"
-                          ? "border-accent/30 bg-accent/10 text-accent"
-                          : qStatus === "error"
-                            ? "border-signal-must/30 bg-signal-must/10 text-signal-must"
-                            : "border-ink-200 bg-ink-50 text-ink-500")
-                    }
-                  >
-                    {qStatus === "recording"
-                      ? "録音中"
-                      : qStatus === "transcribing"
-                        ? "変換中"
-                        : qStatus === "error"
-                          ? "失敗"
-                          : "待機"}
-                  </span>
-                  <span className="text-xs text-ink-400">
-                    Web Audio + Gemini Audio Input で接続予定
-                  </span>
-                  {errorByQuestion[q.id] && (
-                    <p className="w-full text-xs text-signal-must">
-                      {errorByQuestion[q.id]}
-                    </p>
-                  )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={!lastTranscriptByQuestion[q.id]}
+                      onClick={() => restoreLastTranscript(q.id)}
+                    >
+                      直近復元
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={qStatus !== "error"}
+                      onClick={() => retryTranscribe(q.id)}
+                    >
+                      再試行
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={!current.trim()}
+                      onClick={() => clearQuestionTranscript(q.id)}
+                    >
+                      この質問をクリア
+                    </Button>
+                    <span className="text-xs font-mono text-ink-400">
+                      {current.trim().length} chars
+                    </span>
+                  </div>
                 </div>
               </CardContent>
             </Card>

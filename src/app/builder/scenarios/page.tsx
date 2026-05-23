@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { ActionNotice } from "@/components/builder/action-notice";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { Button } from "@/components/ui/button";
+import { useActionNotice } from "@/hooks/use-action-notice";
+import { useStableItemOrder } from "@/hooks/use-stable-item-order";
 import {
   Card,
   CardContent,
@@ -49,7 +52,8 @@ function scenarioStarterTemplate(scenarioId: string): string {
 
 export default function ScenariosPage() {
   const router = useRouter();
-  const [showUnansweredFirst, setShowUnansweredFirst] = useState(true);
+  const [showUnansweredFirst, setShowUnansweredFirst] = useState(false);
+  const { notice, showNotice } = useActionNotice();
   const [showOnlyUnanswered, setShowOnlyUnanswered] = useState(false);
   const scenarioRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const answers = useBuilderStore((s) => s.input.scenarioAnswers);
@@ -71,20 +75,29 @@ export default function ScenariosPage() {
 
   const findAnswer = (id: string) => answers.find((a) => a.scenarioId === id);
 
-  const orderedScenarios = useMemo(() => {
-    if (!showUnansweredFirst) return SCENARIOS;
-    return [...SCENARIOS].sort((a, b) => {
-      const aAnswered = isAnswered(a.id) ? 1 : 0;
-      const bAnswered = isAnswered(b.id) ? 1 : 0;
-      return aAnswered - bAnswered;
-    });
-  }, [showUnansweredFirst, isAnswered]);
-
   const scenarioOrderMap = useMemo(
     () =>
       new Map(SCENARIOS.map((s, index) => [s.id, index + 1] as const)),
     [],
   );
+
+  const answeredSignature = useMemo(
+    () =>
+      SCENARIOS.map((s) => {
+        const a = answers.find((x) => x.scenarioId === s.id);
+        const done = Boolean(
+          a?.choice && a?.freeText && a.freeText.trim().length > 5,
+        );
+        return `${s.id}:${done ? 1 : 0}`;
+      }).join("|"),
+    [answers],
+  );
+
+  const orderedScenarios = useStableItemOrder(SCENARIOS, {
+    showUnansweredFirst,
+    answeredSignature,
+    getSortIndex: (s) => scenarioOrderMap.get(s.id) ?? 0,
+  });
 
   const visibleScenarios = useMemo(() => {
     if (!showOnlyUnanswered) return orderedScenarios;
@@ -116,6 +129,41 @@ export default function ScenariosPage() {
         freeText: scenarioStarterTemplate(s.id),
       });
     });
+    showNotice(
+      "空欄にテンプレを一括挿入しました",
+      "自動では次へ進みません。選択肢と本文を確認してください。",
+    );
+  };
+
+  const applyScenarioTemplate = (scenarioId: string) => {
+    const current = findAnswer(scenarioId);
+    setAnswer({
+      scenarioId,
+      choice: current?.choice,
+      freeText:
+        current?.freeText?.trim()
+          ? current.freeText
+          : scenarioStarterTemplate(scenarioId),
+    });
+    const order = scenarioOrderMap.get(scenarioId) ?? 0;
+    showNotice(
+      `S${String(order).padStart(2, "0")} に書き出しテンプレを挿入しました`,
+      "自動では次へ進みません。選択肢を決めてから本文を整えてください。",
+    );
+  };
+
+  const selectChoice = (scenarioId: string, choiceId: string) => {
+    const current = findAnswer(scenarioId);
+    setAnswer({
+      scenarioId,
+      choice: choiceId,
+      freeText: current?.freeText ?? "",
+    });
+    const order = scenarioOrderMap.get(scenarioId) ?? 0;
+    showNotice(
+      `S${String(order).padStart(2, "0")} の選択肢を保存しました`,
+      "本文が十分に書けたら次のシナリオへ。自動では次へ進みません。",
+    );
   };
 
   const handleNext = () => {
@@ -187,8 +235,15 @@ export default function ScenariosPage() {
               回答済み: {answeredCount}件 / 未回答: {total - answeredCount}件
             </span>
           </div>
+          <p className="mt-3 text-xs leading-relaxed text-ink-500">
+            通常は S01 から順に表示します。まず選択肢を選び、本文を書いてから必要ならテンプレを使ってください。「未回答を先に表示」を ON にすると、回答後に約1秒してから並び替えます。
+          </p>
         </CardContent>
       </Card>
+
+      {notice ? (
+        <ActionNotice title={notice.title} detail={notice.detail} />
+      ) : null}
 
       <div className="grid gap-5">
         {visibleScenarios.length === 0 && showOnlyUnanswered ? (
@@ -249,18 +304,13 @@ export default function ScenariosPage() {
                           <button
                             key={c.id}
                             type="button"
-                            onClick={() =>
-                              setAnswer({
-                                scenarioId: s.id,
-                                choice: c.id,
-                                freeText: current?.freeText ?? "",
-                              })
-                            }
+                            aria-pressed={selected}
+                            onClick={() => selectChoice(s.id, c.id)}
                             className={
-                              "flex flex-col items-start gap-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors " +
+                              "flex flex-col items-start gap-1 rounded-lg border px-4 py-3 text-left text-sm transition-[color,transform,box-shadow] active:scale-[0.98] " +
                               (selected
-                                ? "border-ink-900 bg-ink-900 text-white"
-                                : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")
+                                ? "border-ink-900 bg-ink-900 text-white shadow-sm ring-2 ring-ink-900 ring-offset-2"
+                                : "border-ink-200 bg-white text-ink-700 hover:border-ink-300 hover:bg-ink-50")
                             }
                           >
                             <span className="font-medium">{c.label}</span>
@@ -297,40 +347,36 @@ export default function ScenariosPage() {
                         })
                       }
                     />
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          setAnswer({
-                            scenarioId: s.id,
-                            choice: current?.choice,
-                            freeText:
-                              current?.freeText?.trim()
-                                ? current.freeText
-                                : scenarioStarterTemplate(s.id),
-                          })
-                        }
-                      >
-                        書き出しテンプレを挿入
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={!(current?.choice || current?.freeText?.trim())}
-                        onClick={() =>
-                          setAnswer({
-                            scenarioId: s.id,
-                            choice: undefined,
-                            freeText: "",
-                          })
-                        }
-                      >
-                        このシナリオをクリア
-                      </Button>
-                      <span className="text-xs font-mono text-ink-400">
-                        {(current?.freeText ?? "").trim().length} chars
-                      </span>
+                    <div className="mt-2 border-t border-ink-100 pt-2">
+                      <p className="mb-2 text-[11px] font-medium text-ink-500">
+                        テキスト補助（任意）
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => applyScenarioTemplate(s.id)}
+                        >
+                          書き出しテンプレを挿入
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={!(current?.choice || current?.freeText?.trim())}
+                          onClick={() =>
+                            setAnswer({
+                              scenarioId: s.id,
+                              choice: undefined,
+                              freeText: "",
+                            })
+                          }
+                        >
+                          このシナリオをクリア
+                        </Button>
+                        <span className="text-xs font-mono text-ink-400">
+                          {(current?.freeText ?? "").trim().length} chars
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { ActionNotice } from "@/components/builder/action-notice";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useActionNotice } from "@/hooks/use-action-notice";
+import { useStableItemOrder } from "@/hooks/use-stable-item-order";
 import { useBuilderStore } from "@/store/builder-store";
 import { PERSONALITY_QUESTIONS } from "@/data/personality-questions";
 
@@ -13,14 +16,23 @@ const SCALE_LABELS = ["全く違う", "違う", "中立", "そう思う", "強�
 
 export default function PersonalityPage() {
   const router = useRouter();
-  const [showUnansweredFirst, setShowUnansweredFirst] = useState(true);
+  const [showUnansweredFirst, setShowUnansweredFirst] = useState(false);
   const [showOnlyUnanswered, setShowOnlyUnanswered] = useState(false);
   const questionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const answers = useBuilderStore((s) => s.input.personalityAnswers);
+  const { notice, showNotice } = useActionNotice();
   const setAnswer = useBuilderStore((s) => s.setPersonalityAnswer);
   const setAnswers = useBuilderStore((s) => s.setPersonalityAnswers);
   const markCompleted = useBuilderStore((s) => s.markCompleted);
   const goTo = useBuilderStore((s) => s.goTo);
+
+  const questionOrderMap = useMemo(
+    () =>
+      new Map(
+        PERSONALITY_QUESTIONS.map((q, index) => [q.id, index + 1] as const),
+      ),
+    [],
+  );
 
   const totalQuestions = PERSONALITY_QUESTIONS.length;
   const answered = answers.length;
@@ -32,22 +44,29 @@ export default function PersonalityPage() {
     [answers],
   );
 
-  const orderedQuestions = useMemo(() => {
-    if (!showUnansweredFirst) return PERSONALITY_QUESTIONS;
-    return [...PERSONALITY_QUESTIONS].sort((a, b) => {
-      const aAnswered = valueOf(a.id) ? 1 : 0;
-      const bAnswered = valueOf(b.id) ? 1 : 0;
-      return aAnswered - bAnswered;
-    });
-  }, [showUnansweredFirst, valueOf]);
-
-  const questionOrderMap = useMemo(
+  const answeredSignature = useMemo(
     () =>
-      new Map(
-        PERSONALITY_QUESTIONS.map((q, index) => [q.id, index + 1] as const),
-      ),
-    [],
+      PERSONALITY_QUESTIONS.map((q) => {
+        const value = answers.find((a) => a.questionId === q.id)?.value;
+        return `${q.id}:${value !== undefined ? 1 : 0}`;
+      }).join("|"),
+    [answers],
   );
+
+  const orderedQuestions = useStableItemOrder(PERSONALITY_QUESTIONS, {
+    showUnansweredFirst,
+    answeredSignature,
+    getSortIndex: (q) => questionOrderMap.get(q.id) ?? 0,
+  });
+
+  const handleSelectAnswer = (questionId: string, value: number) => {
+    setAnswer({ questionId, value });
+    const order = questionOrderMap.get(questionId) ?? 0;
+    showNotice(
+      `Q${String(order).padStart(2, "0")} を「${value}（${SCALE_LABELS[value - 1]}）」で保存しました`,
+      "このまま同じ画面で次の質問を選べます。自動では次へ進みません。",
+    );
+  };
 
   const visibleQuestions = useMemo(() => {
     if (!showOnlyUnanswered) return orderedQuestions;
@@ -70,6 +89,10 @@ export default function PersonalityPage() {
       if (valueOf(q.id)) return;
       setAnswer({ questionId: q.id, value: 3 });
     });
+    showNotice(
+      "未回答を中立(3)で一括入力しました",
+      "並びは自動では変わりません。必要なら「次の未回答へ」を押してください。",
+    );
   };
 
   const handleNext = () => {
@@ -141,8 +164,17 @@ export default function PersonalityPage() {
               回答済み: {answered}件 / 未回答: {totalQuestions - answered}件
             </span>
           </div>
+          <p className="mt-3 text-xs leading-relaxed text-ink-500">
+            通常は Q01 から順に表示します。「未回答を先に表示」を ON
+            にすると、回答後に約1秒してから並び替えます（連続タップの取り違え防止）。
+            次へ進むときは「次の未回答へ」を押してください。
+          </p>
         </CardContent>
       </Card>
+
+      {notice ? (
+        <ActionNotice title={notice.title} detail={notice.detail} />
+      ) : null}
 
       <div className="grid gap-4">
         {visibleQuestions.length === 0 && showOnlyUnanswered ? (
@@ -197,14 +229,13 @@ export default function PersonalityPage() {
                       <button
                         key={value}
                         type="button"
-                        onClick={() =>
-                          setAnswer({ questionId: q.id, value })
-                        }
+                        aria-pressed={selected}
+                        onClick={() => handleSelectAnswer(q.id, value)}
                         className={
-                          "flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-[12px] font-medium transition-colors " +
+                          "flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-[12px] font-medium transition-[color,transform,box-shadow] active:scale-[0.98] " +
                           (selected
-                            ? "border-ink-900 bg-ink-900 text-white"
-                            : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")
+                            ? "border-ink-900 bg-ink-900 text-white shadow-sm ring-2 ring-ink-900 ring-offset-2"
+                            : "border-ink-200 bg-white text-ink-700 hover:border-ink-300 hover:bg-ink-50")
                         }
                       >
                         <span className="font-mono text-base">{value}</span>
@@ -227,7 +258,9 @@ export default function PersonalityPage() {
                     この質問をクリア
                   </Button>
                   <span className="text-xs text-ink-500">
-                    現在値: {current ?? "-"}
+                    {current
+                      ? `選択中: ${current}（${SCALE_LABELS[current - 1]}）`
+                      : "未選択"}
                   </span>
                 </div>
               </CardContent>

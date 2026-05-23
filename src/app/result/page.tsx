@@ -31,6 +31,17 @@ import type {
   Rule,
 } from "@/types/executable-context";
 
+/** エクスポート欄のタブ順（その他AIは常に末尾） */
+const EXPORT_TAB_ORDER: ExportTarget[] = [
+  "chatgpt",
+  "claude",
+  "claude_code",
+  "gemini",
+  "google_antigravity",
+  "cursor",
+  "universal_agent",
+];
+
 const TARGET_LABEL: Record<ExportTarget, string> = {
   chatgpt: "ChatGPT",
   claude: "Claude",
@@ -127,7 +138,7 @@ export default function ResultPage() {
   const [chat, setChat] = useState<{ role: "user" | "model"; text: string }[]>(
     [],
   );
-  const [draft, setDraft] = useState("新サービスの月額価格、3万円で行こうと思う。どう思う？");
+  const [draft, setDraft] = useState("");
   const [running, setRunning] = useState(false);
   const [chatError, setChatError] = useState("");
   /** stub / quota フォールバックなど、チャット自体は返ったが注意が必要なとき */
@@ -285,26 +296,58 @@ export default function ResultPage() {
     () => recommendTargetsFromTags(currentProfile?.tags ?? []),
     [currentProfile?.tags],
   );
+  const lastUserChatMessage = useMemo(() => {
+    for (let i = chat.length - 1; i >= 0; i--) {
+      const m = chat[i];
+      if (m.role === "user" && m.text.trim()) {
+        return m.text.replace(/^比較入力:\s*/, "").trim();
+      }
+    }
+    return "";
+  }, [chat]);
+  const compareMessage = draft.trim() || lastUserChatMessage;
+  const comparePair = useMemo(() => {
+    if (recommendedTargets.length >= 2) {
+      return recommendedTargets.slice(0, 2);
+    }
+    const pair: Array<{ target: ExportTarget; score: number; reason: string }> =
+      [];
+    const pushTarget = (target: ExportTarget, reason: string) => {
+      if (pair.some((p) => p.target === target)) return;
+      const md =
+        exports?.[target] ??
+        (context ? renderForTarget(context, target).markdown : "");
+      if (!md.trim()) return;
+      pair.push({ target, score: 0, reason });
+    };
+    pushTarget(activeTarget, "現在選択中");
+    for (const t of ALL_TARGETS) {
+      if (pair.length >= 2) break;
+      pushTarget(t, "代替比較候補");
+    }
+    return pair;
+  }, [recommendedTargets, activeTarget, exports, context]);
   const topRecommendedTarget = recommendedTargets[0]?.target;
   const topRecommendedReason = recommendedTargets[0]?.reason;
   const topRecommendedScore = recommendedTargets[0]?.score ?? 0;
   const topIsStrongRecommendation = topRecommendedScore >= 60;
-  const orderedTargetButtons = useMemo(() => {
-    const recommendedOrder = recommendedTargets.map((r) => r.target);
-    const rest = ALL_TARGETS.filter((t) => !recommendedOrder.includes(t));
-    return [...recommendedOrder, ...rest];
-  }, [recommendedTargets]);
+  const orderedTargetButtons = EXPORT_TAB_ORDER;
   const displayedRecommendations = showAllRecommendations
     ? recommendedTargets
     : recommendedTargets.slice(0, 3);
   const exportHeadings = useMemo(() => {
     const lines = displayedMarkdown.split("\n");
-    const out: Array<{ text: string; line: number }> = [];
+    const out: Array<{ text: string; label: string; line: number }> = [];
     for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(/^#{1,3}\s+(.+)$/);
+      const m = lines[i].match(/^##\s+(.+)$/);
       if (!m) continue;
-      out.push({ text: m[1].trim(), line: i });
-      if (out.length >= 8) break;
+      const text = m[1].trim();
+      const label =
+        text
+          .replace(/^\d+\.\s*/, "")
+          .replace(/[（(].+[）)]\s*$/, "")
+          .trim() || text;
+      out.push({ text, label, line: i });
     }
     return out;
   }, [displayedMarkdown]);
@@ -1314,9 +1357,9 @@ export default function ResultPage() {
     }
   };
   const compareTopTwoRecommendations = async () => {
-    if (recommendedTargets.length < 2 || !draft.trim() || running) return;
-    const message = draft.trim();
-    const pair = recommendedTargets.slice(0, 2);
+    const message = compareMessage;
+    if (comparePair.length < 2 || !message || running) return;
+    const pair = comparePair;
     setRunning(true);
     setChatError("");
     setChatStubNotice("");
@@ -1524,10 +1567,10 @@ export default function ResultPage() {
   const compareDisabledReason =
     running
       ? "送信中です"
-      : !draft.trim()
-        ? "先に入力してください"
-        : recommendedTargets.length < 2
-          ? "比較対象が2件未満です"
+      : !compareMessage
+        ? "テスト入力に質問を入れるか、先に送信して履歴を作ってください"
+        : comparePair.length < 2
+          ? "比較できるエクスポート形式が2件未満です（生成・復元を確認）"
           : "";
   const togglePendingTestCheck = (id: string) => {
     setPendingTestCheckStatus((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -2820,42 +2863,54 @@ export default function ResultPage() {
                 </div>
               </div>
             )}
-            <div className="mb-3 flex flex-wrap items-center justify-start gap-2">
+            <div className="flex flex-wrap items-center justify-start gap-2">
               {orderedTargetButtons.map((t) => (
-                <div key={t} className="flex items-center gap-2">
-                  <button
-                    onClick={() => setActiveTarget(t)}
-                    className={
-                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
-                      (activeTarget === t
-                        ? "border-ink-900 bg-ink-900 text-white"
-                        : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")
-                    }
-                  >
-                    {TARGET_LABEL[t]}
-                  </button>
-                </div>
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setActiveTarget(t)}
+                  className={
+                    "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm " +
+                    (activeTarget === t
+                      ? "border-ink-900 bg-ink-900 text-white"
+                      : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")
+                  }
+                >
+                  {TARGET_LABEL[t]}
+                </button>
               ))}
             </div>
             {exportHeadings.length > 0 && (
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] text-ink-500">見出しへ移動:</span>
-                {exportHeadings.map((h) => (
-                  <Button
-                    key={`${h.text}-${h.line.toString()}`}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => scrollPreviewToHeading(h.line)}
-                    title={h.text}
-                  >
-                    {h.text.length > 16 ? `${h.text.slice(0, 16)}...` : h.text}
-                  </Button>
-                ))}
-              </div>
+              <nav
+                className="mt-4 border-t border-ink-200 pt-4"
+                aria-label="エクスポートプレビューの見出し"
+              >
+                <p className="mb-2.5 text-sm font-medium text-ink-800">
+                  見出しへ移動
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {exportHeadings.map((h) => (
+                    <button
+                      key={`${h.text}-${h.line.toString()}`}
+                      type="button"
+                      onClick={() => scrollPreviewToHeading(h.line)}
+                      title={h.text}
+                      className="max-w-full rounded-md border border-ink-200 bg-white px-2.5 py-1.5 text-left text-xs font-medium text-ink-700 transition-colors hover:border-ink-300 hover:bg-ink-50 sm:text-sm"
+                    >
+                      {h.label.length > 22
+                        ? `${h.label.slice(0, 22)}…`
+                        : h.label}
+                    </button>
+                  ))}
+                </div>
+              </nav>
             )}
             <pre
               ref={exportPreviewRef}
-              className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-ink-200 bg-ink-50 p-4 font-mono text-[12px] leading-relaxed text-ink-800 sm:whitespace-pre"
+              className={
+                (exportHeadings.length > 0 ? "mt-4 " : "mt-3 ") +
+                "max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-ink-200 bg-ink-50 p-4 font-mono text-[12px] leading-relaxed text-ink-800 sm:whitespace-pre"
+              }
             >
               {displayedMarkdown}
             </pre>
@@ -3049,8 +3104,11 @@ export default function ResultPage() {
                   className="w-auto"
                   variant="secondary"
                   onClick={compareTopTwoRecommendations}
-                  disabled={running || !draft.trim() || recommendedTargets.length < 2}
-                  title={compareDisabledReason || "おすすめ1位と2位を同じ入力で比較"}
+                  disabled={running || !compareMessage || comparePair.length < 2}
+                  title={
+                    compareDisabledReason ||
+                    "おすすめ1位・2位（または代替2形式）で同じ質問を一度に比較"
+                  }
                 >
                   1位/2位を比較
                 </Button>
@@ -3647,6 +3705,20 @@ function recommendTargetsFromTags(
     });
   };
 
+  if (
+    lower.some(
+      (t) =>
+        t === "default" ||
+        t.includes("汎用") ||
+        t.includes("general") ||
+        t.includes("その他"),
+    )
+  ) {
+    addScore("chatgpt", 50, "汎用・会話用途");
+    addScore("universal_agent", 45, "ベンダー非依存用途");
+    addScore("claude", 35, "文書・相談用途");
+  }
+
   if (lower.some((t) => t.includes("claudecode") || t.includes("claude code"))) {
     addScore("claude_code", 100, "ClaudeCodeタグと一致");
     addScore("claude", 60, "Claude系モデルとの親和性");
@@ -3676,6 +3748,11 @@ function recommendTargetsFromTags(
   if (tags.length > 0 && scoreMap.size === 0) {
     addScore("chatgpt", 40, "汎用用途");
     addScore("universal_agent", 30, "ベンダー非依存用途");
+  }
+  // タグ未設定でも比較・おすすめが使えるよう最低2件
+  if (scoreMap.size < 2) {
+    addScore("chatgpt", 30, "デフォルト候補");
+    addScore("universal_agent", 25, "デフォルト候補");
   }
 
   return Array.from(scoreMap.entries())
