@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "open:prod": "start https://ai-context-builder-five.vercel.app/"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",

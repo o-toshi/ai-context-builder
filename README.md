@@ -20,7 +20,19 @@
 | AI | Google Gemini API (`@google/generative-ai`) |
 | 音声 | Gemini Audio Input（声のトーン考慮） |
 
-## セットアップ
+## 本番（確認用）
+
+| 用途 | URL |
+|------|-----|
+| **Production（全画面確認など）** | https://ai-context-builder-five.vercel.app/ |
+| オンボーディング | https://ai-context-builder-five.vercel.app/onboarding |
+| 結果・編集・エクスポート | https://ai-context-builder-five.vercel.app/result |
+
+ローカル（`localhost:3000`）と本番では **localStorage が別** です。本番で試すときは本番 URL だけで操作してください。
+
+Vercel の **Deployments** で最新コミットが **Ready** になってから **Ctrl+Shift+R** で再読み込みしてください。
+
+## セットアップ（ローカル開発）
 
 ```bash
 cp .env.local.example .env.local
@@ -30,7 +42,7 @@ npm install
 npm run dev
 ```
 
-[http://localhost:3000](http://localhost:3000) を開く。
+[http://localhost:3000](http://localhost:3000) を開く（開発用。本番確認は上記 Vercel URL を推奨）。
 
 ## 全体フロー
 
