@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 
 interface StepperProps {
   current: StepId;
-  /** モード: 横並びの大きいバー or サイドバー（縦） */
-  variant?: "horizontal" | "vertical";
+  /** horizontal: ラベル付き横スクロール / compact: 1〜6 の丸ボタンのみ / vertical: サイドバー */
+  variant?: "horizontal" | "vertical" | "compact";
 }
 
 /**
@@ -21,6 +21,38 @@ interface StepperProps {
  */
 export function Stepper({ current, variant = "horizontal" }: StepperProps) {
   const completed = useBuilderStore((s) => s.progress.completed);
+
+  if (variant === "compact") {
+    return (
+      <nav aria-label="進捗" className="w-full min-w-0">
+        <ol className="flex flex-wrap items-center gap-2">
+          {BUILDER_STEPS.map((step) => {
+            const isDone = completed[step.id];
+            const isCurrent = step.id === current;
+            return (
+              <li key={step.id}>
+                <Link
+                  href={step.path}
+                  title={`${step.label} — ${step.description}`}
+                  className={cn(
+                    "flex h-9 min-w-9 items-center justify-center rounded-full border px-2 text-sm font-medium transition-colors",
+                    isCurrent
+                      ? "border-ink-900 bg-ink-900 text-white shadow-sm"
+                      : isDone
+                        ? "border-accent bg-accent text-white hover:opacity-90"
+                        : "border-ink-200 bg-white text-ink-600 hover:border-ink-300 hover:bg-ink-50",
+                  )}
+                  aria-current={isCurrent ? "step" : undefined}
+                >
+                  {isDone && !isCurrent ? "✓" : step.index}
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+    );
+  }
 
   if (variant === "vertical") {
     return (

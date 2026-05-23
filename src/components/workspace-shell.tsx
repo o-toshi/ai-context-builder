@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
+import { Stepper } from "@/components/stepper";
 import type { StepId } from "@/types/builder";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { useBuilderStore } from "@/store/builder-store";
@@ -140,8 +141,7 @@ function parseBackupPreview(json: string): BackupPreview | null {
 }
 
 interface WorkspaceShellProps {
-  /** 呼び出し側の互換用（ステッパー廃止後は未使用） */
-  current?: StepId;
+  current: StepId;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
@@ -149,9 +149,10 @@ interface WorkspaceShellProps {
 
 /**
  * 診断ウィザードの共通シェル。
- * 固定ヘッダーは使わず、本文先頭のリンクと「プロファイル・データ」メニューで補助操作を提供。
+ * 固定ヘッダーは使わず、本文先頭に 1〜6 ステップ・補助メニューを置く。
  */
 export function WorkspaceShell({
+  current,
   title,
   subtitle,
   children,
@@ -426,6 +427,9 @@ export function WorkspaceShell({
               </div>
             </div>
           </details>
+        </div>
+        <div className="mb-6 border-b border-ink-100 pb-4">
+          <Stepper current={current} variant="compact" />
         </div>
         {importSuccessSummary && (
           <div className="mb-5 rounded-lg border border-signal-may/35 bg-signal-may/10 px-4 py-3 text-sm text-ink-800">
