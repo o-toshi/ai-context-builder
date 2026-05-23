@@ -140,7 +140,8 @@ function parseBackupPreview(json: string): BackupPreview | null {
 }
 
 interface WorkspaceShellProps {
-  current: StepId;
+  /** 呼び出し側の互換用（ステッパー廃止後は未使用） */
+  current?: StepId;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
@@ -151,7 +152,6 @@ interface WorkspaceShellProps {
  * 固定ヘッダーは使わず、本文先頭のリンクと「プロファイル・データ」メニューで補助操作を提供。
  */
 export function WorkspaceShell({
-  current: _current,
   title,
   subtitle,
   children,
