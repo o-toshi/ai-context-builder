@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { trackFlowStart } from "@/lib/analytics/track-client";
 import { useBuilderStore } from "@/store/builder-store";
 
 const ROLE_PRESETS = [
@@ -40,6 +41,7 @@ export default function OnboardingPage() {
   const handleNext = () => {
     setProfile({ displayName, role, industry, teamSize });
     markCompleted("onboarding");
+    trackFlowStart();
     goTo("personality");
     router.push("/builder/personality");
   };

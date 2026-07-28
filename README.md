@@ -131,6 +131,25 @@ npx vercel        # Preview
 npx vercel --prod # Production
 ```
 
+## 利用状況計測（Vercel Analytics）
+
+[Vercel Web Analytics](https://vercel.com/docs/analytics) で次の3指標を確認できます。**Redis や管理トークンの設定は不要**です。
+
+| 指標 | 見る場所 | 内容 |
+|------|----------|------|
+| **訪問者数** | Analytics → **Pages** → パス `/` | ランディングのページビュー |
+| **開始数** | Analytics → **Events** → `acb_flow_start` | オンボーディング送信 |
+| **MD生成完了数** | Analytics → **Events** → `acb_md_complete` | Markdown 生成成功（スタブ含む） |
+
+### 有効化（初回のみ・約1分）
+
+1. [Vercel Dashboard](https://vercel.com/dashboard) で **ai-context-builder** プロジェクトを開く
+2. 上部 **Analytics** タブをクリック
+3. **Enable Web Analytics** を ON にする
+4. 最新デプロイが Analytics コードを含んでいることを確認（未反映なら Redeploy）
+
+ローカル開発（`npm run dev`）ではイベントは **ブラウザのコンソールにログ** されるだけで、Vercel には送信されません。
+
 ## ライセンス
 
 MIT

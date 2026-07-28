@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { trackMdComplete } from "@/lib/analytics/track-server";
 import {
   extractProtocols,
   extractProtocolsStub,
@@ -56,8 +57,11 @@ export async function POST(request: Request) {
 
     const exports = renderAllTargets(context);
 
+    const mode = useStub ? "stub" : "gemini";
+    await trackMdComplete(request, mode);
+
     return NextResponse.json({
-      mode: useStub ? "stub" : "gemini",
+      mode,
       context,
       exports,
     });
@@ -69,6 +73,7 @@ export async function POST(request: Request) {
     if (!useStub && isQuotaError(message)) {
       const context = extractProtocolsStub(body);
       const exports = renderAllTargets(context);
+      await trackMdComplete(request, "stub_due_to_quota");
       return NextResponse.json({
         mode: "stub_due_to_quota",
         warning:
