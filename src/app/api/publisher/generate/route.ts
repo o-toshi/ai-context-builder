@@ -12,6 +12,11 @@ import {
   parseGeneratePostsRequest,
   PublisherRequestValidationError,
 } from "@/lib/publisher/request-validation";
+import {
+  consumePublisherRateLimit,
+  getPublisherClientKey,
+  publisherRateLimitHeaders,
+} from "@/lib/publisher/rate-limit";
 import { PublisherResponseValidationError } from "@/lib/publisher/validation";
 
 export const runtime = "nodejs";
@@ -22,7 +27,9 @@ const GENERATION_TIMEOUT_MS = 24_000;
 const MAX_ATTEMPTS_PER_MODEL = 2;
 
 type PublisherApiErrorCode =
+  | "RATE_LIMITED"
   | "REQUEST_TOO_LARGE"
+  | "UNSUPPORTED_MEDIA_TYPE"
   | "INVALID_JSON"
   | "VALIDATION_ERROR"
   | "INPUT_INSUFFICIENT"
@@ -42,7 +49,7 @@ interface ClassifiedError {
   retryAfterMs?: number;
 }
 
-function errorResponse(error: ClassifiedError) {
+function errorResponse(error: ClassifiedError, headers?: HeadersInit) {
   return NextResponse.json(
     {
       ok: false,
@@ -57,7 +64,7 @@ function errorResponse(error: ClassifiedError) {
       // クライアントは送信済み入力を破棄せず、再試行に利用できる。
       inputPreserved: true,
     },
-    { status: error.status },
+    { status: error.status, headers },
   );
 }
 
@@ -186,33 +193,68 @@ function classifyError(error: unknown): ClassifiedError {
 
 /** POST /api/publisher/generate */
 export async function POST(request: Request) {
+  const rateLimit = consumePublisherRateLimit(getPublisherClientKey(request));
+  const responseHeaders = publisherRateLimitHeaders(rateLimit);
+  if (!rateLimit.allowed) {
+    return errorResponse(
+      {
+        code: "RATE_LIMITED",
+        message:
+          "短い時間に投稿案の作成が続いています。入力は残っているため、少し待ってから再試行してください。",
+        status: 429,
+        retryable: true,
+        retryAfterMs: rateLimit.retryAfterMs,
+      },
+      responseHeaders,
+    );
+  }
+
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.startsWith("application/json")) {
+    return errorResponse(
+      {
+        code: "UNSUPPORTED_MEDIA_TYPE",
+        message: "Content-Typeはapplication/jsonで送信してください。",
+        status: 415,
+        retryable: false,
+      },
+      responseHeaders,
+    );
+  }
+
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
-    return errorResponse({
-      code: "REQUEST_TOO_LARGE",
-      message: "入力データが大きすぎます。内容を短くして再試行してください。",
-      status: 413,
-      retryable: false,
-    });
+    return errorResponse(
+      {
+        code: "REQUEST_TOO_LARGE",
+        message: "入力データが大きすぎます。内容を短くして再試行してください。",
+        status: 413,
+        retryable: false,
+      },
+      responseHeaders,
+    );
   }
 
   let rawBody: unknown;
   try {
     rawBody = await request.json();
   } catch {
-    return errorResponse({
-      code: "INVALID_JSON",
-      message: "リクエストのJSON形式が正しくありません。",
-      status: 400,
-      retryable: false,
-    });
+    return errorResponse(
+      {
+        code: "INVALID_JSON",
+        message: "リクエストのJSON形式が正しくありません。",
+        status: 400,
+        retryable: false,
+      },
+      responseHeaders,
+    );
   }
 
   let generationRequest;
   try {
     generationRequest = parseGeneratePostsRequest(rawBody);
   } catch (error) {
-    return errorResponse(classifyError(error));
+    return errorResponse(classifyError(error), responseHeaders);
   }
 
   const abortController = new AbortController();
@@ -237,11 +279,14 @@ export async function POST(request: Request) {
       },
     );
 
-    return NextResponse.json({ ok: true, data: result });
+    return NextResponse.json(
+      { ok: true, data: result },
+      { headers: responseHeaders },
+    );
   } catch (error) {
     const classified = classifyError(error);
     console.error(`[publisher/generate] ${classified.code}`, error);
-    return errorResponse(classified);
+    return errorResponse(classified, responseHeaders);
   } finally {
     clearTimeout(timeout);
     request.signal.removeEventListener("abort", abortOnClientDisconnect);

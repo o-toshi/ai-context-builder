@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useLayoutEffect, useRef, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -31,6 +31,7 @@ interface PublisherFormProps {
 
 const CHIP_CLASS =
   "min-h-10 rounded-full border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 focus-visible:ring-offset-2";
+const MESSAGE_MAX_HEIGHT_PX = 384;
 
 function StepLabel({ number, children }: { number: number; children: string }) {
   return (
@@ -61,6 +62,19 @@ export function PublisherForm({
   onPlatformToggle,
   onSubmit,
 }: PublisherFormProps) {
+  const messageRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const element = messageRef.current;
+    if (!element) return;
+
+    element.style.height = "auto";
+    const nextHeight = Math.min(element.scrollHeight, MESSAGE_MAX_HEIGHT_PX);
+    element.style.height = `${nextHeight}px`;
+    element.style.overflowY =
+      element.scrollHeight > MESSAGE_MAX_HEIGHT_PX ? "auto" : "hidden";
+  }, [message]);
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (canSubmit && !isSubmitting) onSubmit();
@@ -78,14 +92,15 @@ export function PublisherForm({
               まとまっていなくても大丈夫です。URLもそのまま含められます。
             </p>
             <textarea
+              ref={messageRef}
               id="publisher-message"
               value={message}
               onChange={(event) => onMessageChange(event.target.value)}
               placeholder="今日あったこと、気付いたこと、誰かに届けたい想いを、そのまま書いてください。"
-              rows={7}
+              rows={3}
               maxLength={4000}
               required
-              className="mt-3 w-full resize-y rounded-xl border border-ink-200 bg-white px-4 py-3 text-base leading-relaxed text-ink-900 outline-none transition placeholder:text-ink-400 focus:border-ink-500 focus:ring-2 focus:ring-ink-100"
+              className="mt-3 w-full resize-none rounded-xl border border-ink-200 bg-white px-4 py-3 text-base leading-relaxed text-ink-900 outline-none transition placeholder:text-ink-400 focus:border-ink-500 focus:ring-2 focus:ring-ink-100"
             />
           </div>
 
@@ -150,34 +165,34 @@ export function PublisherForm({
             </div>
           </fieldset>
 
-          <div>
-            <div className="flex items-center gap-2">
+          <details className="group rounded-xl border border-dashed border-ink-200 bg-ink-50/60">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+              <span>ハッシュタグを追加（任意）</span>
+              <span aria-hidden="true" className="text-ink-400">
+                {hashtagInput.trim() ? "✓" : "＋"}
+              </span>
+            </summary>
+            <div className="border-t border-ink-100 px-4 pb-4 pt-3">
               <label
                 htmlFor="publisher-hashtags"
-                className="text-base font-semibold text-ink-900"
+                className="text-sm text-ink-500"
               >
-                ハッシュタグ
+                使いたいものだけ入力してください。
               </label>
-              <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-500">
-                任意
-              </span>
+              <input
+                id="publisher-hashtags"
+                type="text"
+                value={hashtagInput}
+                onChange={(event) => onHashtagInputChange(event.target.value)}
+                placeholder="例：HUE, 日々の気付き"
+                autoComplete="off"
+                className="mt-2 h-11 w-full rounded-xl border border-ink-200 bg-white px-4 text-base text-ink-900 outline-none transition placeholder:text-ink-400 focus:border-ink-500 focus:ring-2 focus:ring-ink-100"
+              />
+              <p className="mt-2 text-xs text-ink-400">
+                #は付けても付けなくても構いません。空白やカンマで区切れます。
+              </p>
             </div>
-            <p className="mt-2 text-sm text-ink-500">
-              使いたいものだけ入力してください。
-            </p>
-            <input
-              id="publisher-hashtags"
-              type="text"
-              value={hashtagInput}
-              onChange={(event) => onHashtagInputChange(event.target.value)}
-              placeholder="例：HUE, 日々の気付き"
-              autoComplete="off"
-              className="mt-3 h-11 w-full rounded-xl border border-ink-200 bg-white px-4 text-base text-ink-900 outline-none transition placeholder:text-ink-400 focus:border-ink-500 focus:ring-2 focus:ring-ink-100"
-            />
-            <p className="mt-2 text-xs text-ink-400">
-              #は付けても付けなくても構いません。空白やカンマで区切れます。
-            </p>
-          </div>
+          </details>
 
           <fieldset>
             <legend>

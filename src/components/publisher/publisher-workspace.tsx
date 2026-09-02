@@ -89,6 +89,13 @@ function isPublisherApiSuccess(value: unknown): value is PublisherApiSuccess {
   );
 }
 
+function haveSameItems<T extends string>(left: T[], right: T[]): boolean {
+  if (left.length !== right.length) return false;
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+  return sortedLeft.every((item, index) => item === sortedRight[index]);
+}
+
 export function PublisherWorkspace() {
   const histories = usePublisherStore((state) => state.histories);
   const upsertHistory = usePublisherStore((state) => state.upsertHistory);
@@ -126,6 +133,16 @@ export function PublisherWorkspace() {
     emotion !== null &&
     purpose !== null &&
     platforms.length > 0;
+  const hasInputChanged =
+    generatedInput !== null &&
+    (message.trim() !== generatedInput.message ||
+      emotion !== generatedInput.emotion ||
+      purpose !== generatedInput.purpose ||
+      !haveSameItems(
+        normalizeHashtags(hashtagInput),
+        generatedInput.hashtags,
+      ) ||
+      !haveSameItems(platforms, generatedInput.platforms));
 
   const clearError = () => setError(null);
 
@@ -301,12 +318,11 @@ export function PublisherWorkspace() {
         <>
           <section className="mx-auto max-w-3xl">
             <div className="mb-6 sm:mb-8">
-              <p className="text-sm font-semibold text-accent">ライフ</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tightish text-ink-900 sm:text-4xl">
+              <h1 className="text-3xl font-semibold tracking-tightish text-ink-900 sm:text-4xl">
                 今日は、何を届けますか？
               </h1>
               <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-500">
-                今の言葉を中心に、SNSごとの投稿案を整えます。
+                今伝えたいことを、届ける場所に合わせて整えます。
               </p>
             </div>
 
@@ -444,6 +460,21 @@ export function PublisherWorkspace() {
                     ? "SNS投稿案一式を保存しました。"
                     : "編集した内容を同じ履歴へ上書き保存しました。"}
                 </p>
+              )}
+
+              {hasInputChanged && (
+                <div
+                  className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <p className="text-sm font-medium">
+                    入力内容が変更されています
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                    表示中の投稿案はそのままです。変更後の内容を反映するには、もう一度「投稿案をつくる」を選んでください。
+                  </p>
+                </div>
               )}
 
               <div className="grid gap-4 md:grid-cols-2">
