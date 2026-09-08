@@ -11,6 +11,7 @@ export type PublisherMode = "life" | "project";
 
 export type PublisherEmotion =
   | "joy"
+  | "moved"
   | "gratitude"
   | "insight"
   | "passion"

@@ -34,6 +34,7 @@ export const PUBLISHER_MODES = [
 
 export const PUBLISHER_EMOTIONS = [
   { value: "joy", label: "喜び", emoji: "😊" },
+  { value: "moved", label: "感動", emoji: "🥹" },
   { value: "gratitude", label: "感謝", emoji: "😌" },
   { value: "insight", label: "気付き", emoji: "🤔" },
   { value: "passion", label: "情熱", emoji: "🔥" },

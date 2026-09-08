@@ -89,7 +89,7 @@ export function PublisherForm({
               <StepLabel number={1}>伝えたいこと</StepLabel>
             </label>
             <p className="mt-2 text-sm leading-relaxed text-ink-500">
-              まとまっていなくても大丈夫です。URLもそのまま含められます。
+              単語やメモだけでも大丈夫です。文章でもURLでも、そのまま入力してください。
             </p>
             <textarea
               ref={messageRef}
